@@ -650,5 +650,6 @@ def main(argv):
 
 
 if __name__ == "__main__":
-  app.run(main)
+    import sys
+    main(sys.argv)
   
