@@ -138,10 +138,8 @@ def build_input_pipeline(data_dir,
   batches = dataset.repeat().batch(batch_size).prefetch(batch_size)
   iterator = tf.compat.v1.data.make_one_shot_iterator(batches)
   next_element = iterator.get_next()
-  vocabulary = np.loadtxt(os.path.join(data_dir, "vocabulary.txt"), 
-                          dtype=str, 
-                          delimiter="\n",
-                          comments="<!-")
+  vocabulary = np.loadtxt(os.path.join(data_dir, "vocabulary.txt"), dtype=str)
+
 
   total_counts_per_author = np.bincount(
       author_indices, 
