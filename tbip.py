@@ -136,7 +136,8 @@ def build_input_pipeline(data_dir,
   dataset = tf.data.Dataset.from_tensor_slices(
       (documents, shuffled_counts, shuffled_author_indices))
   batches = dataset.repeat().batch(batch_size).prefetch(batch_size)
-  iterator = iter(batches)
+  iterator = tf.compat.v1.data.make_one_shot_iterator(batches)
+  next_element = iterator.get_next()
   vocabulary = np.loadtxt(os.path.join(data_dir, "vocabulary.txt"), 
                           dtype=str, 
                           delimiter="\n",
