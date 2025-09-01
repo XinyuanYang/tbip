@@ -181,18 +181,18 @@ def build_lognormal_variational_parameters(initial_document_loc,
     objective_topic_scale: A positive Variable object with shape [num_topics,
       num_words].
   """
-  document_loc = tf.get_variable(
+  document_loc = tf.Variable(
       "document_loc",
       initializer=tf.constant(np.log(initial_document_loc)))
-  objective_topic_loc = tf.get_variable(
+  objective_topic_loc = tf.Variable(
       "objective_topic_loc",
       initializer=tf.constant(np.log(initial_objective_topic_loc)))
-  document_scale_logit = tf.get_variable(
+  document_scale_logit = tf.Variable(
       "document_scale_logit",
       shape=[num_documents, num_topics],
       initializer=tf.initializers.random_normal(mean=0, stddev=1.),
       dtype=tf.float32)
-  objective_topic_scale_logit = tf.get_variable(
+  objective_topic_scale_logit = tf.Variable(
       "objective_topic_scale_logit",
       shape=[num_topics, num_words],
       initializer=tf.initializers.random_normal(mean=0, stddev=1.),
