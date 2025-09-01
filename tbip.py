@@ -392,7 +392,7 @@ def get_elbo(counts,
 
 def main(argv):
    import tensorflow.compat.v1 as tf
-    tf.disable_v2_behavior()
+  tf.disable_v2_behavior()
   tf.random.set_seed(FLAGS.seed)
   random_state = np.random.RandomState(FLAGS.seed)
   
