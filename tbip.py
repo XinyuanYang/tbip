@@ -42,8 +42,7 @@ import time
 from absl import app, flags
 import numpy as np
 import scipy.sparse as sparse
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
 import tensorflow_probability as tfp
 
 
