@@ -394,7 +394,7 @@ def main(argv):
     import tensorflow.compat.v1 as tf
     tf.disable_v2_behavior()
     tf.set_random_seed(FLAGS.seed)
-  random_state = np.random.RandomState(FLAGS.seed)
+    random_state = np.random.RandomState(FLAGS.seed)
   
   project_dir = os.path.abspath(os.path.dirname(__file__))
   source_dir = os.path.join(project_dir, "data/{}".format(FLAGS.data))
