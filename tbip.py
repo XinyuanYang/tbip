@@ -38,7 +38,7 @@ import functools
 import os
 import time
 
-from absl import flags
+from absl import app, flags
 import numpy as np
 import scipy.sparse as sparse
 import tensorflow as tf
