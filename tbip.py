@@ -16,7 +16,7 @@ The directory `data/{data_name}/clean/` should have the following four files:
   1. `counts.npz`: a [num_documents, num_words] sparse matrix containing the
      word counts for each document.
   2. `author_indices.npy`: a [num_documents] vector where each entry is an
-     integer in the set {0, 1, ..., num_authors - 1}, indicating the author of 
+     integer in the set {0, 1, ..., num_s - 1}, indicating the  of 
      the corresponding document in `counts.npz`.
   3. `vocabulary.txt`: a [num_words]-length file where each line is a string
      denoting the corresponding word in the vocabulary.
@@ -105,8 +105,8 @@ def build_input_pipeline(data_dir,
       os.path.join(data_dir, "author_indices.npy")).astype(np.int32) 
   num_authors = np.max(author_indices + 1)
   author_map = np.loadtxt(os.path.join(data_dir, "author_map.txt"),
-                          dtype=str, 
-                          delimiter="\n")
+                        dtype=str, delimiter="\n")
+                           
   # Shuffle data.
   documents = random_state.permutation(num_documents)
   shuffled_author_indices = author_indices[documents]
