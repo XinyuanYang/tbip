@@ -29,7 +29,7 @@ speeches = pd.read_csv(
     os.path.join(data_dir, 'speeches_114.txt'),
     sep="\t",  # or ',' if CSV
     header=None,
-    on_bad_lines='skip'  # <-- replaces error_bad_lines=False)
+    on_bad_lines='skip')
 description = pd.read_csv(os.path.join(data_dir, 'descr_114.txt'), 
                           encoding="ISO-8859-1", 
                           sep="|")
