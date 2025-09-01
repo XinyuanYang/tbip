@@ -38,11 +38,14 @@ import functools
 import os
 import time
 
+
 from absl import app, flags
 import numpy as np
 import scipy.sparse as sparse
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import tensorflow_probability as tfp
+
 
 
 flags.DEFINE_float("learning_rate",
