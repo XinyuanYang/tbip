@@ -43,6 +43,7 @@ from absl import app, flags
 import numpy as np
 import scipy.sparse as sparse
 import tensorflow as tf
+tf.compat.v1.enable_eager_execution()
 import tensorflow_probability as tfp
 
 
