@@ -391,7 +391,6 @@ def get_elbo(counts,
 
 
 def main(argv):
-  del argv
   tf.random.set_seed(FLAGS.seed)
   random_state = np.random.RandomState(FLAGS.seed)
   
@@ -601,5 +600,4 @@ def main(argv):
         
 
 if __name__ == "__main__":
-    import sys
-    main(sys.argv)
+    app.run(main)
