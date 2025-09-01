@@ -25,9 +25,10 @@ project_dir = os.path.abspath(
 data_dir = os.path.join(project_dir, "data/senate-speeches-114/raw")
 save_dir = os.path.join(project_dir, "data/senate-speeches-114/clean")
 
-speeches = pd.read_csv(os.path.join(data_dir, 'speeches_114.txt'),
-                          encoding="ISO-8859-1", 
-                          sep="|")
+speeches = pd.read_csv(
+    os.path.join(data_dir, 'speeches_114.txt'),
+    sep="|",
+    on_bad_lines="skip")
 description = pd.read_csv(os.path.join(data_dir, 'descr_114.txt'), 
                           encoding="ISO-8859-1", 
                           sep="|")
