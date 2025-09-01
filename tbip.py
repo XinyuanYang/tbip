@@ -185,8 +185,8 @@ def build_lognormal_variational_parameters(initial_document_loc,
       "document_loc",
       initializer=tf.constant(np.log(initial_document_loc)))
   objective_topic_loc = tf.Variable(
-      "objective_topic_loc",
-      initializer = np.zeros((num_documents,), dtype=np.float32) 
+    np.zeros((num_documents,), dtype=np.float32),
+    name="objective_topic_loc")
   document_scale_logit = tf.Variable(
       "document_scale_logit",
       shape=[num_documents, num_topics],
