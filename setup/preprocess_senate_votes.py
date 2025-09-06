@@ -28,7 +28,7 @@ def main(argv):
   project_dir = os.path.abspath(
       os.path.join(os.path.dirname(__file__), os.pardir)) 
   source_dir = os.path.join(
-      project_dir, "data/senate-votes/{}".format(FLAGS.senate_session))
+      project_dir, "data/{}".format(FLAGS.senate_session))
   data_dir = os.path.join(source_dir, "raw")
   save_dir = os.path.join(source_dir, "clean")
 
