@@ -27,9 +27,8 @@ def main(argv):
   del argv
   project_dir = os.path.abspath(
       os.path.join(os.path.dirname(__file__), os.pardir)) 
-  source_dir = os.path.join(
-      project_dir, "data/{}".format(FLAGS.senate_session))
-  data_dir = os.path.join(source_dir, "raw")
+  source_dir = os.path.join(project_dir, "data".format(FLAGS.senate_session))
+  data_dir = os.path.join(source_dir) 
   save_dir = os.path.join(source_dir, "clean")
 
   votes_df = pd.read_csv(
