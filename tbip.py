@@ -16,7 +16,7 @@ The directory `data/{data_name}/clean/` should have the following four files:
   1. `counts.npz`: a [num_documents, num_words] sparse matrix containing the
      word counts for each document.
   2. `author_indices.npy`: a [num_documents] vector where each entry is an
-     integer in the set {0, 1, ..., num_authors - 1}, indicating the author of 
+     integer in the set {0, 1, ..., num_s - 1}, indicating the  of 
      the corresponding document in `counts.npz`.
   3. `vocabulary.txt`: a [num_words]-length file where each line is a string
      denoting the corresponding word in the vocabulary.
@@ -38,11 +38,14 @@ import functools
 import os
 import time
 
-from absl import flags
+
+from absl import app, flags
 import numpy as np
 import scipy.sparse as sparse
 import tensorflow as tf
+tf.compat.v1.enable_eager_execution()
 import tensorflow_probability as tfp
+
 
 
 flags.DEFINE_float("learning_rate",
@@ -105,8 +108,9 @@ def build_input_pipeline(data_dir,
       os.path.join(data_dir, "author_indices.npy")).astype(np.int32) 
   num_authors = np.max(author_indices + 1)
   author_map = np.loadtxt(os.path.join(data_dir, "author_map.txt"),
-                          dtype=str, 
-                          delimiter="\n")
+                        dtype=str)
+
+                           
   # Shuffle data.
   documents = random_state.permutation(num_documents)
   shuffled_author_indices = author_indices[documents]
@@ -132,11 +136,13 @@ def build_input_pipeline(data_dir,
   dataset = tf.data.Dataset.from_tensor_slices(
       (documents, shuffled_counts, shuffled_author_indices))
   batches = dataset.repeat().batch(batch_size).prefetch(batch_size)
-  iterator = batches.make_one_shot_iterator()
-  vocabulary = np.loadtxt(os.path.join(data_dir, "vocabulary.txt"), 
-                          dtype=str, 
-                          delimiter="\n",
-                          comments="<!-")
+  iterator = tf.compat.v1.data.make_one_shot_iterator(batches)
+  next_element = iterator.get_next()
+  vocabulary_file = os.path.join(data_dir, "vocabulary.txt")
+  with open(vocabulary_file, "r") as f:
+    vocabulary = np.array([line.strip().split()[0] for line in f if line.strip()])
+
+
 
   total_counts_per_author = np.bincount(
       author_indices, 
@@ -175,18 +181,16 @@ def build_lognormal_variational_parameters(initial_document_loc,
     objective_topic_scale: A positive Variable object with shape [num_topics,
       num_words].
   """
-  document_loc = tf.get_variable(
+  document_loc = tf.Variable(
       "document_loc",
       initializer=tf.constant(np.log(initial_document_loc)))
-  objective_topic_loc = tf.get_variable(
-      "objective_topic_loc",
-      initializer=tf.constant(np.log(initial_objective_topic_loc)))
-  document_scale_logit = tf.get_variable(
-      "document_scale_logit",
-      shape=[num_documents, num_topics],
-      initializer=tf.initializers.random_normal(mean=0, stddev=1.),
-      dtype=tf.float32)
-  objective_topic_scale_logit = tf.get_variable(
+  objective_topic_loc = tf.Variable(
+    np.zeros((num_documents,), dtype=np.float32),
+    name="objective_topic_loc")
+  document_scale_logit = tf.Variable(
+    np.zeros((num_documents,), dtype=np.float32),
+    name="document_scale_logit")
+  objective_topic_scale_logit = tf.Variable(
       "objective_topic_scale_logit",
       shape=[num_topics, num_words],
       initializer=tf.initializers.random_normal(mean=0, stddev=1.),
@@ -391,7 +395,8 @@ def get_elbo(counts,
 
 
 def main(argv):
-  del argv
+  import tensorflow.compat.v1 as tf
+  tf.disable_v2_behavior()
   tf.set_random_seed(FLAGS.seed)
   random_state = np.random.RandomState(FLAGS.seed)
   
@@ -601,4 +606,4 @@ def main(argv):
         
 
 if __name__ == "__main__":
-  tf.app.run()
+    app.run(main)
