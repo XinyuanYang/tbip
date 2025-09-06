@@ -439,9 +439,10 @@ def main(argv):
 
   counts_sparse = sparse.load_npz(os.path.join(data_dir, "counts.npz"))
   counts = np.array(counts_sparse.todense())
-  vocabulary = np.genfromtxt(os.path.join(data_dir, "vocabulary.txt"),
-                           dtype=str, usecols=0)
-
+  vocabulary = np.loadtxt(os.path.join(data_dir, "vocabulary.txt"),
+                          dtype=str,
+                          delimiter="\n",
+                          comments="<!-")
 
   num_documents, num_words = counts.shape
   print("{} documents, {} words".format(num_documents, num_words))
