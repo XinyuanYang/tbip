@@ -22,9 +22,12 @@ from __future__ import print_function
 import functools
 import os
 import time
+import sys
+import warnings
 
 # Dependency imports
 from absl import flags
+from absl import app
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
@@ -69,9 +72,7 @@ def build_input_pipeline(data_dir):
   votes = np.load(os.path.join(data_dir, "votes.npy"))
   bill_indices = np.load(os.path.join(data_dir, "bill_indices.npy"))
   senator_indices = np.load(os.path.join(data_dir, "senator_indices.npy"))
-  senator_map = np.loadtxt(os.path.join(data_dir, "senator_map.txt"),
-                           dtype=str, 
-                           delimiter="\n")
+  senator_map = np.loadtxt(os.path.join(data_dir, "senator_map.txt"), dtype=str)
   num_bills = len(np.unique(bill_indices))
   num_senators = len(senator_map)
   dataset_size = len(votes)
@@ -80,28 +81,48 @@ def build_input_pipeline(data_dir):
   # Use the complete dataset as a batch.
   batch_size = len(votes)
   batches = dataset.repeat().batch(batch_size).prefetch(batch_size)
-  iterator = batches.make_one_shot_iterator()
+  iterator = iter(batches)
   return iterator, senator_map, num_bills, num_senators, dataset_size
 
 
 def print_ideal_points(ideal_point_loc, senator_map):
-  """Order and print ideal points for Tensorboard."""
-  return ", ".join(senator_map[np.argsort(ideal_point_loc)])
+    """Order and print ideal points for Tensorboard.
+
+    Args:
+        ideal_point_loc: tf.Variable or tf.Tensor of shape [num_senators]
+        senator_map: list of strings of length num_senators
+
+    Returns:
+        A string with senator names ordered by their ideal points
+    """
+    # Convert ideal points to NumPy array if necessary
+    if isinstance(ideal_point_loc, tf.Variable) or isinstance(ideal_point_loc, tf.Tensor):
+        ideal_point_array = ideal_point_loc.numpy()
+    else:
+        ideal_point_array = np.array(ideal_point_loc)
+
+    # Ensure senator_map is a list of strings
+    senator_map = [str(s) for s in senator_map]
+
+    # Get sorted indices and return ordered senator names
+    sorted_indices = np.argsort(ideal_point_array)
+    sorted_senators = [senator_map[i] for i in sorted_indices]
+
+    return ", ".join(sorted_senators)
 
 
 def get_log_prior(samples):
-  """Return log prior of sampled Gaussians.
-  
-  Args:
-    samples: A Tensor with shape [num_samples, :].
-  
-  Returns:
-    log_prior: A `Tensor` with shape [num_samples], with the log prior
-      summed across the latent dimension.
-  """
-  prior_distribution = tfp.distributions.Normal(loc=0., scale=1.)
-  log_prior = tf.reduce_sum(prior_distribution.log_prob(samples), axis=1)
-  return log_prior
+    """Return log prior of sampled Gaussians.
+
+    Args:
+        samples: A tf.Tensor with shape [num_samples, latent_dim]
+
+    Returns:
+        log_prior: A tf.Tensor with shape [num_samples], log prior summed across latent dim
+    """
+    prior_distribution = tfp.distributions.Normal(loc=0., scale=1.)
+    log_prior = tf.reduce_sum(prior_distribution.log_prob(samples), axis=1)
+    return log_prior
 
 
 def get_entropy(distribution, samples):
@@ -186,125 +207,85 @@ def get_elbo(votes,
 
 
 def main(argv):
-  del argv
-  tf.set_random_seed(FLAGS.seed)
-  
-  project_dir = os.path.abspath(
-      os.path.join(os.path.dirname(__file__), os.pardir)) 
-  source_dir = os.path.join(
-      project_dir, "data/senate-votes/{}".format(FLAGS.senate_session))
-  data_dir = os.path.join(source_dir, "clean")
-  save_dir = os.path.join(source_dir, "fits")
-  
-  if tf.gfile.Exists(save_dir):
-    tf.logging.warn("Deleting old log directory at {}".format(save_dir))
-    tf.gfile.DeleteRecursively(save_dir)
-  tf.gfile.MakeDirs(save_dir)
+    del argv
+    tf.random.set_seed(FLAGS.seed)
 
-  np.warnings.filterwarnings('ignore')  # suppress scipy.sparse warnings.
-  (iterator, senator_map, num_bills, 
-   num_senators, dataset_size) = build_input_pipeline(data_dir)
-  votes, bill_indices, senator_indices = iterator.get_next()
+    # Directories
+    project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+    source_dir = os.path.join(project_dir, f"data/senate-votes/{FLAGS.senate_session}")
+    data_dir = os.path.join(source_dir, "clean")
+    save_dir = os.path.join(source_dir, "fits")
+    os.makedirs(save_dir, exist_ok=True)
 
-  # Initialize variational parameters.
-  ideal_point_loc = tf.get_variable("ideal_point_loc",
-                                    shape=[num_senators],
-                                    dtype=tf.float32)
-  ideal_point_logit = tf.get_variable("ideal_point_logit",
-                                      shape=[num_senators],
-                                      dtype=tf.float32)
-  polarity_loc = tf.get_variable("polarity_loc",
-                                 shape=[num_bills],
-                                 dtype=tf.float32)
-  polarity_logit = tf.get_variable("polarity_logit",
-                                   shape=[num_bills],
-                                   dtype=tf.float32)
-  popularity_loc = tf.get_variable("popularity_loc",
-                                   shape=[num_bills],
-                                   dtype=tf.float32)
-  popularity_logit = tf.get_variable("popularity_logit",
-                                     shape=[num_bills],
-                                     dtype=tf.float32)
-  
-  ideal_point_scale = tf.nn.softplus(ideal_point_logit)
-  polarity_scale = tf.nn.softplus(polarity_logit)
-  popularity_scale = tf.nn.softplus(popularity_logit)
+    # Data
+    iterator, senator_map, num_bills, num_senators, dataset_size = build_input_pipeline(data_dir)
+    votes, bill_indices, senator_indices = next(iterator)
 
-  tf.summary.histogram("params/ideal_point_loc", ideal_point_loc)
-  tf.summary.histogram("params/ideal_point_scale", ideal_point_scale)
-  tf.summary.histogram("params/polarity_loc", polarity_loc)
-  tf.summary.histogram("params/polarity_scale", polarity_scale)
-  tf.summary.histogram("params/popularity_loc", popularity_loc)
-  tf.summary.histogram("params/popularity_scale", popularity_scale)
-  
-  ideal_point_distribution = tfp.distributions.Normal(loc=ideal_point_loc,
-                                                      scale=ideal_point_scale)
-  polarity_distribution = tfp.distributions.Normal(loc=polarity_loc,
-                                                   scale=polarity_scale) 
-  popularity_distribution = tfp.distributions.Normal(loc=popularity_loc,
-                                                     scale=popularity_scale)  
-  
-  elbo = get_elbo(votes,
-                  bill_indices,
-                  senator_indices,
-                  ideal_point_distribution,
-                  polarity_distribution,
-                  popularity_distribution,
-                  dataset_size,
-                  FLAGS.num_samples)
-  loss = -elbo
-  tf.summary.scalar("loss", loss)
+    # Variational parameters
+    ideal_point_loc = tf.Variable(tf.zeros([num_senators]), name="ideal_point_loc")
+    ideal_point_logit = tf.Variable(tf.zeros([num_senators]), name="ideal_point_logit")
+    ideal_point_scale = tf.nn.softplus(ideal_point_logit)
 
-  optim = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)
-  train_op = optim.minimize(loss)
+    polarity_loc = tf.Variable(tf.zeros([num_bills]), name="polarity_loc")
+    polarity_logit = tf.Variable(tf.zeros([num_bills]), name="polarity_logit")
+    polarity_scale = tf.nn.softplus(polarity_logit)
 
-  ideal_point_list = tf.py_func(
-      functools.partial(print_ideal_points, senator_map=senator_map),
-      [ideal_point_loc],
-      tf.string, 
-      stateful=False)
-  tf.summary.text("ideal_points", ideal_point_list) 
-  
-  summary = tf.summary.merge_all()
-  init = tf.global_variables_initializer()
+    popularity_loc = tf.Variable(tf.zeros([num_bills]), name="popularity_loc")
+    popularity_logit = tf.Variable(tf.zeros([num_bills]), name="popularity_logit")
+    popularity_scale = tf.nn.softplus(popularity_logit)
 
-  with tf.Session() as sess:
-    summary_writer = tf.summary.FileWriter(save_dir, sess.graph)
-    sess.run(init)
+    # TensorBoard writer
+    writer = tf.summary.create_file_writer(save_dir)
+
+    # Optimizer
+    optimizer = tf.optimizers.Adam(learning_rate=FLAGS.learning_rate)
+
+    trainable_vars = [ideal_point_loc, ideal_point_logit,
+                      polarity_loc, polarity_logit,
+                      popularity_loc, popularity_logit]
+
     for step in range(FLAGS.max_steps):
-      start_time = time.time()
-      (_, elbo_val) = sess.run([train_op, elbo])
-      duration = time.time() - start_time
-      if step % FLAGS.print_steps == 0:
-        print("Step: {:>3d} ELBO: {:.3f} ({:.3f} sec)".format(
-            step, elbo_val, duration))
-                     
-        summary_str = sess.run(summary)
-        summary_writer.add_summary(summary_str, step)
-        summary_writer.flush()
-      
-      if step % 100 == 0 or step == FLAGS.max_steps - 1:
-        (ideal_point_loc_val, ideal_point_scale_val, polarity_loc_val,
-         polarity_scale_val, popularity_loc_val, 
-         popularity_scale_val) = sess.run([
-             ideal_point_loc, ideal_point_scale, polarity_loc, 
-             polarity_scale, popularity_loc, popularity_scale])
-        param_save_dir = os.path.join(save_dir, "params/")
-        if not tf.gfile.Exists(param_save_dir):
-          tf.gfile.MakeDirs(param_save_dir)
-        np.save(os.path.join(param_save_dir, "ideal_point_loc"), 
-                ideal_point_loc_val)
-        np.save(os.path.join(param_save_dir, "ideal_point_scale"), 
-                ideal_point_scale_val)
-        np.save(os.path.join(param_save_dir, "polarity_loc"), 
-                polarity_loc_val)
-        np.save(os.path.join(param_save_dir, "polarity_scale"), 
-                polarity_scale_val)
-        np.save(os.path.join(param_save_dir, "popularity_loc"), 
-                popularity_loc_val)
-        np.save(os.path.join(param_save_dir, "popularity_scale"), 
-                popularity_scale_val)
+        start_time = time.time()
+        with tf.GradientTape() as tape:
+            # Build distributions
+            ideal_point_dist = tfp.distributions.Normal(loc=ideal_point_loc,
+                                                        scale=ideal_point_scale)
+            polarity_dist = tfp.distributions.Normal(loc=polarity_loc,
+                                                     scale=polarity_scale)
+            popularity_dist = tfp.distributions.Normal(loc=popularity_loc,
+                                                       scale=popularity_scale)
+            # Compute ELBO
+            elbo_val = get_elbo(votes, bill_indices, senator_indices,
+                                ideal_point_dist, polarity_dist, popularity_dist,
+                                dataset_size, FLAGS.num_samples)
+            loss = -elbo_val
 
+        grads = tape.gradient(loss, trainable_vars)
+        optimizer.apply_gradients(zip(grads, trainable_vars))
+        duration = time.time() - start_time
+
+        # Print info
+        if step % FLAGS.print_steps == 0:
+            print(f"Step {step:>4d}, ELBO: {elbo_val:.3f} ({duration:.3f} sec)")
+
+            # Write TensorBoard summaries
+            with writer.as_default():
+                tf.summary.scalar("ELBO", elbo_val, step=step)
+                # Print ordered ideal points
+                ideal_point_names = print_ideal_points(ideal_point_loc, senator_map)
+                tf.summary.text("Ideal Points", ideal_point_names, step=step)
+
+        # Save parameters every 100 steps
+        if step % 100 == 0 or step == FLAGS.max_steps - 1:
+            param_save_dir = os.path.join(save_dir, "params")
+            os.makedirs(param_save_dir, exist_ok=True)
+
+            np.save(os.path.join(param_save_dir, "ideal_point_loc"), ideal_point_loc.numpy())
+            np.save(os.path.join(param_save_dir, "ideal_point_scale"), ideal_point_scale.numpy())
+            np.save(os.path.join(param_save_dir, "polarity_loc"), polarity_loc.numpy())
+            np.save(os.path.join(param_save_dir, "polarity_scale"), polarity_scale.numpy())
+            np.save(os.path.join(param_save_dir, "popularity_loc"), popularity_loc.numpy())
+            np.save(os.path.join(param_save_dir, "popularity_scale"), popularity_scale.numpy())
 
 if __name__ == "__main__":
-  tf.app.run()
+    app.run(main)
